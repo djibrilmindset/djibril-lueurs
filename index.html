@@ -14,6 +14,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Playfair+Display:wght@400;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<!-- Confetti victoire -->
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js" defer></script>
 
 <style>
 :root{
@@ -65,7 +67,11 @@ body{
 
 /* TOPBAR */
 .topbar{display:flex;align-items:center;gap:10px;padding:8px 0 14px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;flex-wrap:wrap}
-.brand{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--paper)}
+.btn-back{width:36px;height:36px;border-radius:50%;border:1.5px solid rgba(255,255,255,.2);background:rgba(36,25,54,.7);color:var(--paper);font-family:var(--display);font-weight:700;font-size:1.4rem;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;transition:all .15s;line-height:1}
+.btn-back:hover{border-color:var(--gold);color:var(--gold-bright);transform:translateX(-2px)}
+.btn-back:active{transform:scale(.92)}
+.brand{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--paper);transition:transform .15s}
+.brand:hover{transform:scale(1.02)}
 .brand .pill{width:24px;height:12px;border-radius:999px;background:linear-gradient(90deg,#d4145a,#e85d2c,#f5c54a);box-shadow:0 0 10px rgba(245,197,74,.6)}
 .brand .label{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:var(--gold-bright)}
 .room-chip{margin-left:auto;display:flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(245,197,74,.12);border:1.5px solid var(--gold);border-radius:999px;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--gold-bright);letter-spacing:.1em;cursor:pointer}
@@ -109,6 +115,8 @@ body{
 .btn--ember{background:var(--ember);border-color:var(--ember);color:#fff}
 .btn--ember:hover{box-shadow:0 6px 16px rgba(232,93,44,.4)}
 .btn--sm{padding:8px 14px;font-size:10px;margin-top:0;width:auto;display:inline-block}
+.btn--danger{background:transparent;color:#ff8a85;border-color:rgba(199,62,58,.4);font-weight:500;letter-spacing:.14em}
+.btn--danger:hover{background:rgba(199,62,58,.12);color:#ffb085;box-shadow:0 4px 12px rgba(199,62,58,.2)}
 
 .divider{display:flex;align-items:center;gap:10px;margin:20px 0;font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:rgba(243,236,223,.4);text-transform:uppercase}
 .divider::before, .divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.08)}
@@ -210,10 +218,12 @@ body{
 <body>
 
 <div class="cosmos"></div>
+<canvas id="particles-canvas" style="position:fixed;inset:0;pointer-events:none;z-index:1"></canvas>
 
 <div class="shell">
   <div class="topbar">
-    <a class="brand" href="#" onclick="return false">
+    <button class="btn-back" id="btn-back" style="display:none" onclick="askLeave()" title="Retour">‹</button>
+    <a class="brand" href="#" onclick="goHome();return false">
       <div class="pill"></div>
       <div>
         <div style="font-family:var(--display);font-weight:900;font-size:1.1rem;line-height:1">Lueurs</div>
@@ -295,8 +305,10 @@ body{
 
     <div id="lobby-host-controls" style="display:none">
       <button class="btn" id="btn-start" disabled>Lancer la partie ✦</button>
+      <button class="btn btn--danger" id="btn-dissolve" style="margin-top:8px">Dissoudre le salon</button>
     </div>
     <p class="muted" id="lobby-wait-msg" style="text-align:center">En attente du host…</p>
+    <button class="btn btn--danger" id="btn-leave" style="margin-top:6px;display:none">Quitter le salon</button>
   </div>
 
   <!-- ──────────────────────────── ASSOCIATE PHASE ─────────────────────────── -->
@@ -388,6 +400,18 @@ body{
     <button class="btn" onclick="window.location.reload()">Nouvelle partie ✦</button>
   </div>
 
+</div>
+
+<!-- Confirm modal (leave / dissolve) -->
+<div class="modal-overlay" id="modal-confirm">
+  <div class="modal">
+    <h3 id="confirm-title">Confirmer</h3>
+    <p id="confirm-msg">Es-tu sûr ?</p>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn--ghost" id="confirm-cancel" style="margin-top:0">Annuler</button>
+      <button class="btn btn--danger" id="confirm-ok" style="margin-top:0">Confirmer</button>
+    </div>
+  </div>
 </div>
 
 <!-- Rules modal -->

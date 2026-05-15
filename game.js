@@ -66,6 +66,18 @@ function seedRand(seed){
   };
 }
 
+// Nombre de cartes IA disponibles (00.jpg → 39.jpg)
+const AI_CARDS_COUNT = 40;
+
+function generateCardVisual(cardId){
+  // Si on a une image IA pour cet ID, on l'utilise. Sinon SVG procédural.
+  if(cardId < AI_CARDS_COUNT){
+    const idx = String(cardId).padStart(2,'0');
+    return `<div class="card-img" style="background-image:url('cards/${idx}.jpg');background-size:cover;background-position:center;width:100%;height:100%"></div>`;
+  }
+  return generateCardSVG(cardId);
+}
+
 function generateCardSVG(cardId){
   // cardId = 0..59 : génère une carte SVG reproducible
   const rng = seedRand(cardId * 7919 + 1234567);
@@ -401,7 +413,7 @@ function renderAssociateBoard(){
   $('word-display').textContent = state.room.word || '—';
   const board = state.room.board_cards || [];
   $('board-associate').innerHTML = board.map((cid,i) => `
-    <div class="card" data-card-id="${cid}" data-board-idx="${i}">${generateCardSVG(cid)}
+    <div class="card" data-card-id="${cid}" data-board-idx="${i}">${generateCardVisual(cid)}
       <div class="card-num">${i+1}</div>
     </div>
   `).join('');
@@ -548,7 +560,7 @@ function renderRevealBoard(){
     if(playable) cls += ' playable';
     if(myFallen && !isRevealed) cls += ' is-fallen';
     return `<div class="${cls}" data-card-id="${cid}" data-board-idx="${i}" ${playable?'data-clickable="1"':''}>
-      ${generateCardSVG(cid)}
+      ${generateCardVisual(cid)}
       <div class="card-num">${i+1}</div>
       ${isRevealed?`<div class="card-spark">${revType==='super'?'✦✦':revType==='spark'?'✦':'✗'}</div>`:''}
     </div>`;
@@ -741,6 +753,288 @@ window.copyRoomCode = function(){
 };
 window.showRules = function(){ $('modal-rules').classList.add('is-on'); };
 window.hideRules = function(){ $('modal-rules').classList.remove('is-on'); };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LEAVE / DISSOLVE / NAVIGATION
+// ═══════════════════════════════════════════════════════════════════════════
+function showConfirm(title, msg, onOk){
+  $('confirm-title').textContent = title;
+  $('confirm-msg').textContent = msg;
+  $('modal-confirm').classList.add('is-on');
+  const okBtn = $('confirm-ok');
+  const cancelBtn = $('confirm-cancel');
+  const close = () => { $('modal-confirm').classList.remove('is-on'); okBtn.replaceWith(okBtn.cloneNode(true)); };
+  cancelBtn.onclick = close;
+  $('confirm-ok').onclick = () => { close(); onOk && onOk(); };
+}
+
+window.askLeave = function(){
+  if(!state.room){ goHome(); return; }
+  if(state.player && state.player.is_host && state.room.state === 'lobby'){
+    showConfirm('Dissoudre le salon ?',
+      `Le salon ${state.room.code} sera fermé et tous les joueurs déconnectés.`,
+      dissolveRoom);
+  } else if(state.room.state === 'lobby' || state.room.state === 'finished'){
+    showConfirm('Quitter le salon ?',
+      `Tu sortiras du salon ${state.room.code}. Tu peux revenir avec le code.`,
+      leaveRoom);
+  } else {
+    showConfirm('Quitter la partie ?',
+      'Tu abandonnes cette partie en cours. Les autres joueurs continueront sans toi.',
+      leaveRoom);
+  }
+  haptic(20);
+};
+
+window.goHome = function(){
+  if(state.room) {
+    askLeave();
+    return;
+  }
+  cleanupLocal();
+  showScreen('home');
+  $('btn-back').style.display = 'none';
+  $('round-chip').style.display = 'none';
+  $('room-chip').style.display = 'none';
+};
+
+async function leaveRoom(){
+  if(!state.player || !state.room) return cleanupLocal();
+  try {
+    await sb.from('lueurs_players').delete().eq('id', state.player.id);
+  } catch(e){ console.warn('leave err', e); }
+  cleanupLocal();
+  showScreen('home');
+  $('btn-back').style.display = 'none';
+  $('round-chip').style.display = 'none';
+  $('room-chip').style.display = 'none';
+  toast('Tu as quitté le salon', 'ok');
+}
+
+async function dissolveRoom(){
+  if(!state.room) return cleanupLocal();
+  try {
+    // Delete cascades to players via ON DELETE CASCADE
+    await sb.from('lueurs_rooms').delete().eq('id', state.room.id);
+  } catch(e){ console.warn('dissolve err', e); }
+  cleanupLocal();
+  showScreen('home');
+  $('btn-back').style.display = 'none';
+  $('round-chip').style.display = 'none';
+  $('room-chip').style.display = 'none';
+  toast('Salon dissout', 'ok');
+}
+
+function cleanupLocal(){
+  if(state.channel){ try{ state.channel.unsubscribe(); }catch(e){} }
+  state.player = null; state.room = null; state.players = []; state.channel = null;
+  localStorage.removeItem('lueurs_player_id');
+  localStorage.removeItem('lueurs_room_id');
+  // Reset locked sels visuals
+  document.querySelectorAll('#board-associate .card').forEach(c => {
+    c.style.pointerEvents = '';
+    c.classList.remove('is-picked');
+  });
+  $('btn-validate-sel').disabled = false;
+  $('btn-validate-sel').textContent = 'Valider';
+}
+
+// Bind leave/dissolve buttons (lobby)
+document.addEventListener('DOMContentLoaded', () => {
+  const bd = $('btn-dissolve'); if(bd) bd.addEventListener('click', () => askLeave());
+  const bl = $('btn-leave');    if(bl) bl.addEventListener('click', () => askLeave());
+});
+// Also bind right now (script loaded after DOM)
+setTimeout(()=>{
+  const bd = $('btn-dissolve'); if(bd && !bd._bound){ bd._bound=1; bd.addEventListener('click', () => askLeave()); }
+  const bl = $('btn-leave');    if(bl && !bl._bound){ bl._bound=1; bl.addEventListener('click', () => askLeave()); }
+}, 100);
+
+// Hook showScreen to manage back button visibility + lobby leave buttons
+const _origShowScreen = showScreen;
+showScreen = function(name){
+  _origShowScreen(name);
+  $('btn-back').style.display = (name === 'home' || name === 'finished') ? 'none' : 'flex';
+  // Show "Quitter" button to non-host in waiting screen
+  if(name === 'waiting' && state.player){
+    if(!state.player.is_host) $('btn-leave').style.display = '';
+    else $('btn-leave').style.display = 'none';
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HAPTIC + SOUND (Web Audio API génératif)
+// ═══════════════════════════════════════════════════════════════════════════
+function haptic(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+
+let _audioCtx = null;
+function audioCtx(){
+  if(!_audioCtx) try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){}
+  return _audioCtx;
+}
+function tone(freq, duration, type='sine', gain=0.08){
+  const ctx = audioCtx(); if(!ctx) return;
+  if(ctx.state === 'suspended') ctx.resume();
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = type; o.frequency.value = freq;
+  o.connect(g); g.connect(ctx.destination);
+  g.gain.setValueAtTime(0, ctx.currentTime);
+  g.gain.linearRampToValueAtTime(gain, ctx.currentTime + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+  o.start();
+  o.stop(ctx.currentTime + duration);
+}
+function sfxSpark(){
+  // Cristallin: 3 tons ascendants courts
+  tone(700, 0.12, 'sine', 0.06);
+  setTimeout(()=>tone(900, 0.12, 'sine', 0.06), 80);
+  setTimeout(()=>tone(1200, 0.18, 'sine', 0.07), 160);
+  haptic(15);
+}
+function sfxSuper(){
+  // Cristallin 5 tons + vibrato
+  [600,800,1000,1200,1500].forEach((f,i)=>setTimeout(()=>tone(f,0.16,'triangle',0.07), i*60));
+  haptic([20,40,20]);
+}
+function sfxFall(){
+  // Descente sombre
+  tone(220, 0.3, 'sawtooth', 0.06);
+  setTimeout(()=>tone(150, 0.35, 'sawtooth', 0.05), 100);
+  haptic([30,50,30]);
+}
+function sfxClick(){ tone(880, 0.05, 'square', 0.04); }
+function sfxWin(){
+  // Fanfare 8 notes
+  const notes = [523,587,659,784,659,784,988,1175];
+  notes.forEach((f,i)=>setTimeout(()=>tone(f, 0.18, 'triangle', 0.08), i*100));
+  haptic([40,30,40,30,40,30,80]);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PARTICLES CANVAS (étincelles flottantes en arrière-plan)
+// ═══════════════════════════════════════════════════════════════════════════
+(function initParticles(){
+  const canvas = document.getElementById('particles-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let particles = [];
+  let W = 0, H = 0;
+  function resize(){
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function spawn(n){
+    for(let i=0;i<n;i++){
+      particles.push({
+        x: Math.random()*W,
+        y: H + Math.random()*40,
+        vx: (Math.random()-.5)*.3,
+        vy: -.3 - Math.random()*.8,
+        r: .5 + Math.random()*1.6,
+        life: 1,
+        decay: .003 + Math.random()*.005,
+        hue: [40, 30, 320, 280, 200][Math.floor(Math.random()*5)],
+      });
+    }
+  }
+
+  function step(){
+    ctx.clearRect(0,0,W,H);
+    spawn(0.3); // densité subtile
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      p.x += p.vx; p.y += p.vy;
+      p.life -= p.decay;
+      if(p.life <= 0 || p.y < -20) { particles.splice(i,1); continue; }
+      const alpha = p.life * .8;
+      ctx.fillStyle = `hsla(${p.hue}, 90%, 70%, ${alpha})`;
+      ctx.shadowColor = `hsla(${p.hue}, 90%, 60%, ${alpha})`;
+      ctx.shadowBlur = 6 + p.r*4;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    requestAnimationFrame(step);
+  }
+  // Spawn initial puis loop
+  spawn(40);
+  step();
+})();
+
+// Burst de particules localisé (clic sur carte etc.)
+function burstParticles(x, y, color='#f5c54a'){
+  const canvas = document.getElementById('particles-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const N = 16;
+  for(let i=0;i<N;i++){
+    const angle = (i / N) * Math.PI * 2;
+    const speed = 2 + Math.random()*3;
+    let px = x, py = y, vx = Math.cos(angle)*speed, vy = Math.sin(angle)*speed;
+    let life = 1;
+    function tick(){
+      ctx.fillStyle = color + Math.floor(life*255).toString(16).padStart(2,'0');
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(px, py, 2 + life*2, 0, Math.PI*2);
+      ctx.fill();
+      px += vx; py += vy; vy += 0.06;
+      vx *= 0.97; vy *= 0.98;
+      life -= 0.025;
+      if(life > 0) requestAnimationFrame(tick);
+    }
+    tick();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFETTI HOOK (utilise canvas-confetti loaded via CDN)
+// ═══════════════════════════════════════════════════════════════════════════
+function celebrateWinner(){
+  if(typeof confetti !== 'function') return;
+  // Multi-burst over 2s
+  confetti({ particleCount: 80, spread: 70, origin: { y: .6 }, colors:['#f5c54a','#e85d2c','#d4145a','#9b6dd9','#3ec98a','#3b82f6'] });
+  setTimeout(()=>confetti({ particleCount: 60, angle: 60, spread: 55, origin: { x: 0 }, colors:['#f5c54a','#e85d2c'] }), 250);
+  setTimeout(()=>confetti({ particleCount: 60, angle: 120, spread: 55, origin: { x: 1 }, colors:['#9b6dd9','#3ec98a'] }), 400);
+  setTimeout(()=>confetti({ particleCount: 100, spread: 120, origin: { y: .45 }, scalar: 1.4, colors:['#f5c54a','#fff','#e85d2c'] }), 800);
+  sfxWin();
+}
+
+// Hook sur fin de partie
+const _origRenderFinished = renderFinished;
+renderFinished = function(){
+  _origRenderFinished();
+  setTimeout(celebrateWinner, 400);
+};
+
+// Hook sur événements de reveal pour SFX + burst particles
+const _origEventToast = eventToast;
+eventToast = function(text, type){
+  _origEventToast(text, type);
+  if(type === 'super') sfxSuper();
+  else if(type === 'spark') sfxSpark();
+  else if(type === 'fall') sfxFall();
+};
+
+// Click feedback : sound + haptic léger sur boutons importants
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn, .card, .color-dot, .room-chip, .btn-back');
+  if(btn){
+    sfxClick();
+    haptic(8);
+    // Burst particles sur card click
+    if(btn.classList.contains('card')){
+      const r = btn.getBoundingClientRect();
+      burstParticles(r.left + r.width/2, r.top + r.height/2, '#f5c54a');
+    }
+  }
+}, { capture: true });
 
 // ── RECONNECT (refresh page) ──────────────────────────────────────────────
 (async function tryReconnect(){
