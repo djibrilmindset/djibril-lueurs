@@ -149,6 +149,17 @@ body{
 .card .card-spark{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:var(--display);font-weight:900;font-size:1.4rem;color:#fff;text-shadow:0 0 12px rgba(0,0,0,.9);background:rgba(0,0,0,.5);padding:2px 8px;border-radius:6px;pointer-events:none}
 .card svg{display:block;width:100%;height:100%}
 
+/* ─── TIMER ─── */
+.timer-wrap{position:relative;margin:14px 0 6px;padding-top:18px}
+.timer-bar{position:relative;height:8px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,.06)}
+.timer-fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#3ec98a,#f5c54a,#e85d2c);transition:width .9s linear;width:100%;box-shadow:0 0 12px rgba(245,197,74,.4)}
+.timer-fill.warn{background:linear-gradient(90deg,#f5c54a,#e85d2c)}
+.timer-fill.crit{background:linear-gradient(90deg,#e85d2c,#c73e3a);animation:timerPulse .6s ease-in-out infinite}
+.timer-text{position:absolute;right:4px;top:0;font-family:var(--mono);font-size:11px;font-weight:700;color:rgba(243,236,223,.7);letter-spacing:.05em}
+.timer-text.crit{color:#ff8a85;font-size:13px;animation:timerPulse .6s ease-in-out infinite}
+.timer-label{position:absolute;left:0;top:0;font-family:var(--mono);font-size:9px;font-weight:600;color:rgba(243,236,223,.5);letter-spacing:.12em;text-transform:uppercase}
+@keyframes timerPulse{0%,100%{opacity:1}50%{opacity:.5}}
+
 /* ─── COUNTER ─── */
 .selection-bar{position:sticky;bottom:0;background:linear-gradient(to top, var(--bg-2) 70%, transparent);padding:14px 0 8px;margin:0 -16px;display:flex;align-items:center;gap:10px;padding-left:16px;padding-right:16px;flex-wrap:wrap;z-index:5}
 .selection-bar .count{font-family:var(--display);font-weight:900;font-size:1.6rem;color:var(--gold-bright);line-height:1}
@@ -322,6 +333,12 @@ body{
       Choisis entre <strong>1 et 10 cartes</strong> qui t'évoquent ce mot. C'est secret.
     </p>
 
+    <div class="timer-wrap" id="timer-associate">
+      <span class="timer-label">Temps restant</span>
+      <span class="timer-text" id="timer-text-associate">120s</span>
+      <div class="timer-bar"><div class="timer-fill" id="timer-fill-associate"></div></div>
+    </div>
+
     <div class="cards-board" id="board-associate"></div>
 
     <div class="selection-bar">
@@ -352,6 +369,10 @@ body{
     <div class="eclaireur-banner" id="eclaireur-banner">
       <div class="who"><b id="eclaireur-name">—</b> est éclaireur</div>
       <div class="what" id="eclaireur-action">Choisit une de ses cartes…</div>
+      <div class="timer-wrap" id="timer-reveal" style="margin-top:10px">
+        <span class="timer-text" id="timer-text-reveal" style="right:4px;top:-2px;font-size:10px">30s</span>
+        <div class="timer-bar"><div class="timer-fill" id="timer-fill-reveal"></div></div>
+      </div>
     </div>
 
     <div class="cards-board" id="board-reveal"></div>

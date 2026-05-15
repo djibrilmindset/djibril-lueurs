@@ -365,6 +365,9 @@ async function handleRoomUpdate(){
   $('round-chip').style.display = '';
   $('round-n').textContent = state.room.round_n;
 
+  // Stop tous les timers actifs : la nouvelle phase ré-armera ce qu'il faut
+  stopAllTimers();
+
   switch(state.room.state){
     case 'lobby':
       showScreen('waiting');
@@ -372,8 +375,8 @@ async function handleRoomUpdate(){
     case 'associate':
       showScreen('associate');
       renderAssociateBoard();
-      // Reset my local selections from server
       await loadMySelections();
+      startAssociateTimer();
       break;
     case 'announce':
       showScreen('announce');
@@ -383,6 +386,7 @@ async function handleRoomUpdate(){
       showScreen('reveal');
       renderRevealBoard();
       renderEclaireurBanner();
+      startRevealTimer();
       break;
     case 'scoring':
       showScreen('scoring');
@@ -755,6 +759,92 @@ window.showRules = function(){ $('modal-rules').classList.add('is-on'); };
 window.hideRules = function(){ $('modal-rules').classList.remove('is-on'); };
 
 // ═══════════════════════════════════════════════════════════════════════════
+// PHASE TIMERS (associate 120s, reveal 30s/éclaireur)
+// ═══════════════════════════════════════════════════════════════════════════
+const PHASE_DURATIONS = { associate: 120, reveal_per_eclaireur: 30 };
+
+const _timers = {}; // { id: intervalHandle }
+
+function stopTimer(id){
+  if(_timers[id]){ clearInterval(_timers[id]); delete _timers[id]; }
+  const text = document.getElementById('timer-text-'+id);
+  if(text){
+    for(let i=1;i<=10;i++) delete text.dataset['t'+i];
+  }
+}
+
+function startTimer(id, startedAtMs, durationSec, onExpire){
+  stopTimer(id);
+  const endsAt = startedAtMs + durationSec*1000;
+  const textEl = document.getElementById('timer-text-'+id);
+  const fillEl = document.getElementById('timer-fill-'+id);
+  if(!textEl || !fillEl) return;
+
+  function tick(){
+    const remaining = Math.max(0, Math.ceil((endsAt - Date.now())/1000));
+    const pct = Math.max(0, Math.min(100, ((endsAt - Date.now()) / (durationSec*1000)) * 100));
+    fillEl.style.width = pct.toFixed(1) + '%';
+    fillEl.classList.toggle('warn', remaining <= 30 && remaining > 10);
+    fillEl.classList.toggle('crit', remaining <= 10);
+    textEl.textContent = remaining + 's';
+    textEl.classList.toggle('crit', remaining <= 10);
+    // Tick SFX on last 5 seconds (one shot per second)
+    if(remaining > 0 && remaining <= 5 && !textEl.dataset['t'+remaining]){
+      textEl.dataset['t'+remaining] = '1';
+      sfxClick();
+      haptic(15);
+    }
+    if(remaining <= 0){
+      stopTimer(id);
+      onExpire && onExpire();
+    }
+  }
+  tick();
+  _timers[id] = setInterval(tick, 250);
+}
+
+function startAssociateTimer(){
+  // Démarre depuis room.updated_at (synced via Realtime)
+  if(!state.room || !state.room.updated_at) return;
+  const startedAt = new Date(state.room.updated_at).getTime();
+  startTimer('associate', startedAt, PHASE_DURATIONS.associate, async () => {
+    // Auto-validate si encore actif
+    const btn = document.getElementById('btn-validate-sel');
+    if(btn && !btn.disabled){
+      // Si rien de sélectionné, force au moins 1 carte aléatoire
+      const picked = document.querySelectorAll('#board-associate .card.is-picked');
+      if(picked.length === 0){
+        const all = document.querySelectorAll('#board-associate .card');
+        if(all.length){ all[Math.floor(Math.random()*all.length)].click(); }
+      }
+      setTimeout(()=>btn.click(), 200);
+      eventToast('⏱ Temps écoulé — auto-validation', 'fall');
+    }
+  });
+}
+
+function startRevealTimer(){
+  if(!state.room || !state.room.updated_at) return;
+  // Reset à chaque changement de pointeur (room.updated_at change)
+  const startedAt = new Date(state.room.updated_at).getTime();
+  startTimer('reveal', startedAt, PHASE_DURATIONS.reveal_per_eclaireur, async () => {
+    // Auto-désigner une carte aléatoire si c'est mon tour
+    if(currentEclaireurId() === state.player.id){
+      const me = state.players.find(p=>p.id===state.player.id);
+      const revealedIds = new Set((state.room.revealed_cards||[]).map(r=>r.card_id));
+      const myRemaining = (me?.selections||[]).filter(c => !revealedIds.has(c));
+      if(myRemaining.length){
+        const auto = myRemaining[Math.floor(Math.random()*myRemaining.length)];
+        eventToast('⏱ Temps écoulé — carte auto-désignée', 'fall');
+        designateCard(auto);
+      }
+    }
+  });
+}
+
+function stopAllTimers(){ Object.keys(_timers).forEach(stopTimer); }
+
+// ═══════════════════════════════════════════════════════════════════════════
 // LEAVE / DISSOLVE / NAVIGATION
 // ═══════════════════════════════════════════════════════════════════════════
 function showConfirm(title, msg, onOk){
@@ -826,6 +916,7 @@ async function dissolveRoom(){
 }
 
 function cleanupLocal(){
+  stopAllTimers();
   if(state.channel){ try{ state.channel.unsubscribe(); }catch(e){} }
   state.player = null; state.room = null; state.players = []; state.channel = null;
   localStorage.removeItem('lueurs_player_id');
