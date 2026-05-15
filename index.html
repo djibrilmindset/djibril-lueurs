@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<meta name="theme-color" content="#1a1426">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Lueurs — jeu d'association d'idées</title>
+
+<meta property="og:title" content="Lueurs — jeu d'association">
+<meta property="og:description" content="Jeu d'association d'idées multijoueur depuis votre téléphone.">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Playfair+Display:wght@400;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#0f0c1c; --bg-2:#1a1426; --bg-card:#241936;
+  --paper:#f3ecdf; --ink:#1a1614; --ink-soft:#4a4055;
+  --gold:#d4951a; --gold-bright:#f5c54a;
+  --ember:#e85d2c; --ember-deep:#c73e1a;
+  --plum:#6b3a4f; --indigo:#4a3c8c; --magenta:#d4145a;
+  --jade:#1d8a6f; --jade-bright:#3ec98a;
+  --crit:#c73e3a; --warn:#d4951a;
+  --paper-soft:#e9e0cf;
+  --serif:'Instrument Serif',Georgia,serif;
+  --display:'Playfair Display',Georgia,serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{max-width:100vw;overflow-x:hidden;height:100%}
+body{
+  font-family:var(--serif);
+  background:radial-gradient(ellipse at top, #2a1d3f 0%, var(--bg) 60%);
+  color:var(--paper);min-height:100vh;
+  background-attachment:fixed;
+}
+
+/* COSMOS background (stars) */
+.cosmos{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.cosmos::before, .cosmos::after{
+  content:'';position:absolute;inset:0;
+  background-image:
+    radial-gradient(1px 1px at 12% 20%, #fff 1px, transparent 2px),
+    radial-gradient(1.5px 1.5px at 30% 70%, #f5c54a 1px, transparent 2px),
+    radial-gradient(1px 1px at 60% 40%, #fff 1px, transparent 2px),
+    radial-gradient(2px 2px at 80% 10%, #e85d2c 1px, transparent 3px),
+    radial-gradient(1px 1px at 70% 85%, #fff 1px, transparent 2px),
+    radial-gradient(1px 1px at 45% 50%, #d4145a 1px, transparent 2px),
+    radial-gradient(1px 1px at 25% 90%, #f5c54a 1px, transparent 2px),
+    radial-gradient(1.5px 1.5px at 90% 60%, #fff 1px, transparent 2px),
+    radial-gradient(1px 1px at 50% 15%, #f5c54a 1px, transparent 2px),
+    radial-gradient(1px 1px at 15% 55%, #fff 1px, transparent 2px);
+  background-size: 100% 100%;
+  opacity:.7;animation:twinkle 6s ease-in-out infinite alternate;
+}
+.cosmos::after{
+  animation-delay:-3s;background-size:120% 120%;background-position:50% 30%;opacity:.45;
+}
+@keyframes twinkle{0%,100%{opacity:.5}50%{opacity:.9}}
+
+.shell{position:relative;z-index:2;max-width:720px;margin:0 auto;padding:14px 16px 96px;min-height:100vh;display:flex;flex-direction:column}
+
+/* TOPBAR */
+.topbar{display:flex;align-items:center;gap:10px;padding:8px 0 14px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--paper)}
+.brand .pill{width:24px;height:12px;border-radius:999px;background:linear-gradient(90deg,#d4145a,#e85d2c,#f5c54a);box-shadow:0 0 10px rgba(245,197,74,.6)}
+.brand .label{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:var(--gold-bright)}
+.room-chip{margin-left:auto;display:flex;align-items:center;gap:6px;padding:6px 12px;background:rgba(245,197,74,.12);border:1.5px solid var(--gold);border-radius:999px;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--gold-bright);letter-spacing:.1em;cursor:pointer}
+.room-chip:hover{background:rgba(245,197,74,.22)}
+.round-chip{padding:6px 10px;background:rgba(232,93,44,.15);border:1px solid var(--ember);border-radius:999px;font-family:var(--mono);font-size:9px;font-weight:600;color:#ffb085;letter-spacing:.12em;text-transform:uppercase}
+
+/* HEADERS */
+.page-head{margin-bottom:20px}
+.page-head h1{font-family:var(--serif);font-style:italic;font-weight:400;font-size:clamp(2rem,7vw,2.8rem);line-height:1.05}
+.page-head h1 .accent{font-family:var(--display);font-style:normal;font-weight:900;color:var(--gold-bright);text-shadow:0 0 20px rgba(245,197,74,.4)}
+.page-head .lede{font-family:var(--serif);font-style:italic;color:rgba(243,236,223,.7);font-size:.96rem;margin-top:4px;line-height:1.4}
+
+/* SCREEN containers */
+.screen{display:none;flex-direction:column;gap:14px;animation:fadeIn .25s ease}
+.screen.is-active{display:flex}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ─── LOBBY ─── */
+.lobby-card{background:rgba(36,25,54,.85);border:1.5px solid rgba(245,197,74,.25);border-radius:8px;padding:22px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.lobby-card h3{font-family:var(--display);font-weight:900;font-size:1.05rem;color:var(--gold-bright);margin-bottom:12px;letter-spacing:-.01em}
+.lobby-card label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(243,236,223,.6);margin-bottom:6px;font-weight:600}
+.lobby-card input{width:100%;padding:12px 14px;font-family:var(--display);font-weight:700;font-size:1.05rem;background:rgba(15,12,28,.7);border:1.5px solid rgba(255,255,255,.15);border-radius:6px;color:var(--paper);outline:none;transition:border-color .15s}
+.lobby-card input:focus{border-color:var(--gold)}
+.lobby-card .input-code{text-align:center;font-family:var(--mono);font-size:1.4rem;letter-spacing:.4em;text-transform:uppercase}
+.color-picker{display:flex;gap:10px;justify-content:space-between;margin-top:4px}
+.color-dot{width:38px;height:38px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .15s,border-color .15s;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.color-dot.is-active{border-color:#fff;transform:scale(1.12)}
+.color-dot[data-c=violet]{background:#9b6dd9}
+.color-dot[data-c=orange]{background:#e85d2c}
+.color-dot[data-c=bleu]{background:#3b82f6}
+.color-dot[data-c=rose]{background:#ec4899}
+.color-dot[data-c=vert]{background:#10b981}
+.color-dot[data-c=or]{background:#f5c54a}
+
+.btn{font-family:var(--mono);font-weight:600;font-size:11px;letter-spacing:.18em;text-transform:uppercase;background:var(--gold);color:var(--ink);border:1.5px solid var(--gold);padding:14px 20px;cursor:pointer;border-radius:6px;transition:transform .15s,box-shadow .15s;width:100%;margin-top:10px}
+.btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(245,197,74,.35)}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:.4;pointer-events:none;cursor:not-allowed}
+.btn--ghost{background:transparent;color:var(--gold-bright);border-color:rgba(245,197,74,.4)}
+.btn--ghost:hover{background:rgba(245,197,74,.1);box-shadow:none}
+.btn--ember{background:var(--ember);border-color:var(--ember);color:#fff}
+.btn--ember:hover{box-shadow:0 6px 16px rgba(232,93,44,.4)}
+.btn--sm{padding:8px 14px;font-size:10px;margin-top:0;width:auto;display:inline-block}
+
+.divider{display:flex;align-items:center;gap:10px;margin:20px 0;font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:rgba(243,236,223,.4);text-transform:uppercase}
+.divider::before, .divider::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.08)}
+
+/* ─── PLAYERS LIST ─── */
+.players-list{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.player-row{display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(36,25,54,.6);border:1px solid rgba(255,255,255,.08);border-radius:6px;font-family:var(--display);font-weight:700}
+.player-row .pdot{width:14px;height:14px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 2px rgba(255,255,255,.15)}
+.player-row .pname{flex:1;font-size:1rem}
+.player-row .pscore{font-family:var(--mono);font-size:11px;color:var(--gold-bright);letter-spacing:.05em}
+.player-row .ptag{font-family:var(--mono);font-size:9px;color:rgba(243,236,223,.5);letter-spacing:.1em;text-transform:uppercase}
+
+/* ─── WORD CARD ─── */
+.word-card{background:linear-gradient(135deg,rgba(75,60,140,.5),rgba(212,20,90,.3));border:2px solid var(--gold);border-radius:8px;padding:22px 18px;text-align:center;box-shadow:0 0 30px rgba(245,197,74,.2),inset 0 0 30px rgba(0,0,0,.3)}
+.word-card .label{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-bright);margin-bottom:6px}
+.word-card .word{font-family:var(--display);font-style:italic;font-weight:900;font-size:clamp(1.8rem,7vw,2.6rem);color:var(--paper);text-shadow:0 0 18px rgba(245,197,74,.4);line-height:1.1}
+
+/* ─── CARD GRID ─── */
+.cards-board{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+@media (min-width:480px){.cards-board{grid-template-columns:repeat(5,1fr)}}
+.card{position:relative;aspect-ratio:5/7;border-radius:7px;overflow:hidden;cursor:pointer;transition:transform .15s,box-shadow .15s;border:2px solid rgba(255,255,255,.1);background:#111}
+.card:hover{transform:scale(1.03)}
+.card.is-picked{border-color:var(--gold);box-shadow:0 0 0 3px rgba(245,197,74,.3),0 6px 16px rgba(245,197,74,.4);transform:scale(.97)}
+.card.is-picked::after{content:'✓';position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;background:var(--gold);color:var(--ink);font-family:var(--display);font-weight:900;font-size:14px;display:flex;align-items:center;justify-content:center;line-height:1;animation:pop .25s ease}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+.card.is-revealed{box-shadow:0 0 0 3px var(--jade-bright)}
+.card.is-fallen{filter:grayscale(.7) brightness(.6);pointer-events:none}
+.card.is-revealed-fall{box-shadow:0 0 0 3px var(--crit)}
+.card .card-num{position:absolute;bottom:3px;left:3px;font-family:var(--mono);font-size:8px;color:rgba(255,255,255,.4);font-weight:600;text-shadow:0 0 4px rgba(0,0,0,.8);background:rgba(0,0,0,.4);padding:1px 4px;border-radius:3px}
+.card .card-spark{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:var(--display);font-weight:900;font-size:1.4rem;color:#fff;text-shadow:0 0 12px rgba(0,0,0,.9);background:rgba(0,0,0,.5);padding:2px 8px;border-radius:6px;pointer-events:none}
+.card svg{display:block;width:100%;height:100%}
+
+/* ─── COUNTER ─── */
+.selection-bar{position:sticky;bottom:0;background:linear-gradient(to top, var(--bg-2) 70%, transparent);padding:14px 0 8px;margin:0 -16px;display:flex;align-items:center;gap:10px;padding-left:16px;padding-right:16px;flex-wrap:wrap;z-index:5}
+.selection-bar .count{font-family:var(--display);font-weight:900;font-size:1.6rem;color:var(--gold-bright);line-height:1}
+.selection-bar .count small{font-size:.7rem;color:rgba(243,236,223,.5);font-weight:500;letter-spacing:.1em}
+.selection-bar .hint{font-family:var(--serif);font-style:italic;color:rgba(243,236,223,.7);font-size:.92rem;flex:1;line-height:1.3}
+.selection-bar .btn{margin-top:0;width:auto;min-width:140px}
+
+/* ─── ANNOUNCE ─── */
+.announce-grid{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.announce-row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;background:rgba(36,25,54,.6);border:1px solid rgba(255,255,255,.1);border-radius:6px}
+.announce-row.obscurity{border-color:var(--magenta);background:rgba(212,20,90,.12);box-shadow:0 0 16px rgba(212,20,90,.2)}
+.announce-row .pdot{width:14px;height:14px;border-radius:50%}
+.announce-row .pname{font-family:var(--display);font-weight:700;font-size:1rem}
+.announce-row .pcount{font-family:var(--display);font-weight:900;font-size:1.4rem;color:var(--gold-bright)}
+.announce-row .ptag{font-family:var(--mono);font-size:8.5px;color:var(--magenta);letter-spacing:.12em;text-transform:uppercase;font-weight:700}
+
+/* ─── REVEAL ─── */
+.eclaireur-banner{background:rgba(232,93,44,.18);border:2px solid var(--ember);border-radius:6px;padding:14px;text-align:center;margin:10px 0;animation:pulse-ember 2s ease-in-out infinite}
+@keyframes pulse-ember{0%,100%{box-shadow:0 0 0 0 rgba(232,93,44,.4)}50%{box-shadow:0 0 0 12px rgba(232,93,44,0)}}
+.eclaireur-banner .who{font-family:var(--display);font-style:italic;font-weight:700;font-size:.95rem;color:rgba(243,236,223,.8)}
+.eclaireur-banner .who b{color:var(--ember-deep);font-style:normal;font-weight:900}
+.eclaireur-banner .what{font-family:var(--display);font-weight:900;font-size:1.1rem;color:var(--gold-bright);margin-top:4px}
+
+.event-toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:rgba(36,25,54,.95);border:2px solid var(--gold);padding:14px 22px;border-radius:8px;font-family:var(--display);font-weight:800;font-size:1.05rem;text-align:center;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.5);animation:toastIn .3s ease,toastOut .3s ease 2.2s forwards;max-width:90vw}
+.event-toast.spark{border-color:var(--gold-bright);color:var(--gold-bright)}
+.event-toast.super{border-color:var(--ember);color:#ffb085;background:rgba(232,93,44,.2);font-size:1.15rem}
+.event-toast.fall{border-color:var(--crit);color:#ff8a85;background:rgba(199,62,58,.15)}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}}
+@keyframes toastOut{to{opacity:0;transform:translateX(-50%) translateY(-10px)}}
+
+/* ─── SCORING ─── */
+.scoring-card{background:rgba(36,25,54,.85);border:1.5px solid rgba(245,197,74,.3);border-radius:8px;padding:18px}
+.scoring-card h3{font-family:var(--display);font-weight:900;font-size:1.05rem;color:var(--gold-bright);margin-bottom:12px}
+
+/* Star rating display */
+.stars-vis{display:inline-flex;gap:1px;font-family:var(--display);color:var(--gold-bright);font-size:.85rem;letter-spacing:-.1em}
+
+/* ─── FINISHED ─── */
+.winner-card{text-align:center;padding:28px 18px;background:linear-gradient(135deg,rgba(245,197,74,.25),rgba(232,93,44,.18));border:3px solid var(--gold);border-radius:10px;box-shadow:0 0 40px rgba(245,197,74,.3)}
+.winner-card .trophy{font-size:3rem;display:block;margin-bottom:8px}
+.winner-card .label{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--gold-bright);text-transform:uppercase;font-weight:700}
+.winner-card .name{font-family:var(--display);font-style:italic;font-weight:900;font-size:2rem;margin:6px 0;color:var(--paper);text-shadow:0 0 20px rgba(245,197,74,.5)}
+.winner-card .score{font-family:var(--mono);font-size:1.4rem;color:var(--gold-bright);font-weight:600}
+
+/* Toast notifs */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(36,25,54,.95);border:1px solid rgba(255,255,255,.15);padding:10px 18px;border-radius:8px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--paper);z-index:80;animation:toastIn .25s ease,toastOut .25s ease 2s forwards}
+
+/* Loading */
+.loading{padding:40px 20px;text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:rgba(243,236,223,.6);text-transform:uppercase}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,12,28,.85);z-index:90;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.is-on{display:flex}
+.modal{background:var(--bg-2);border:2px solid var(--gold);border-radius:8px;max-width:420px;width:100%;padding:20px;animation:fadeIn .25s ease}
+.modal h3{font-family:var(--display);font-weight:900;font-size:1.05rem;color:var(--gold-bright);margin-bottom:10px}
+.modal p{font-family:var(--serif);color:rgba(243,236,223,.85);font-size:.95rem;line-height:1.5;margin-bottom:14px}
+
+/* helper */
+.muted{color:rgba(243,236,223,.55);font-family:var(--serif);font-style:italic;font-size:.9rem}
+.kbd{font-family:var(--mono);background:rgba(255,255,255,.1);padding:2px 6px;border-radius:3px;font-size:.85em}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+
+<div class="cosmos"></div>
+
+<div class="shell">
+  <div class="topbar">
+    <a class="brand" href="#" onclick="return false">
+      <div class="pill"></div>
+      <div>
+        <div style="font-family:var(--display);font-weight:900;font-size:1.1rem;line-height:1">Lueurs</div>
+        <div class="label">Association d'idées</div>
+      </div>
+    </a>
+    <span class="round-chip" id="round-chip" style="display:none">Manche <b id="round-n">1</b>/4</span>
+    <span class="room-chip" id="room-chip" style="display:none" onclick="copyRoomCode()">
+      <span>🔗</span><span id="room-code-display"></span>
+    </span>
+  </div>
+
+  <!-- ──────────────────────────── LOBBY ─────────────────────────── -->
+  <div class="screen is-active" id="screen-home">
+    <header class="page-head">
+      <h1>Lueurs <span class="accent">d'étoiles</span>.</h1>
+      <p class="lede">Un mot. Quinze cartes. Devine ce que les autres ont vu. <strong>3 à 6 joueurs.</strong></p>
+    </header>
+
+    <div class="lobby-card">
+      <h3>Créer un salon</h3>
+      <label>Ton prénom</label>
+      <input id="host-name" maxlength="15" placeholder="Ex: Djibril" autocomplete="off">
+      <label style="margin-top:14px">Couleur</label>
+      <div class="color-picker" id="host-colors">
+        <div class="color-dot" data-c="violet"></div>
+        <div class="color-dot" data-c="orange"></div>
+        <div class="color-dot" data-c="bleu"></div>
+        <div class="color-dot" data-c="rose"></div>
+        <div class="color-dot" data-c="vert"></div>
+        <div class="color-dot" data-c="or"></div>
+      </div>
+      <button class="btn" id="btn-create">Créer le salon ✦</button>
+    </div>
+
+    <div class="divider"><span>ou rejoins</span></div>
+
+    <div class="lobby-card">
+      <h3>Rejoindre un salon</h3>
+      <label>Code (4 caractères)</label>
+      <input id="join-code" maxlength="4" class="input-code" placeholder="ABCD" autocomplete="off" autocapitalize="characters" inputmode="latin">
+      <label style="margin-top:14px">Ton prénom</label>
+      <input id="join-name" maxlength="15" placeholder="Ex: Mariam" autocomplete="off">
+      <label style="margin-top:14px">Couleur</label>
+      <div class="color-picker" id="join-colors">
+        <div class="color-dot" data-c="violet"></div>
+        <div class="color-dot" data-c="orange"></div>
+        <div class="color-dot" data-c="bleu"></div>
+        <div class="color-dot" data-c="rose"></div>
+        <div class="color-dot" data-c="vert"></div>
+        <div class="color-dot" data-c="or"></div>
+      </div>
+      <button class="btn btn--ghost" id="btn-join">Rejoindre →</button>
+    </div>
+
+    <p class="muted" style="margin-top:16px;text-align:center;font-size:.85rem">
+      Jeu d'association d'idées multijoueur — chacun depuis son téléphone.<br>
+      <a href="#" onclick="showRules();return false" style="color:var(--gold-bright);text-decoration:underline">Voir les règles ↗</a>
+    </p>
+  </div>
+
+  <!-- ──────────────────────────── WAITING ROOM ─────────────────────────── -->
+  <div class="screen" id="screen-waiting">
+    <header class="page-head">
+      <h1><span class="accent">Salon</span> ouvert.</h1>
+      <p class="lede">Partage le code avec tes amis. <strong>3 joueurs minimum.</strong></p>
+    </header>
+
+    <div class="lobby-card" style="text-align:center">
+      <label>Code du salon</label>
+      <div style="font-family:var(--display);font-style:italic;font-weight:900;font-size:3rem;letter-spacing:.3em;color:var(--gold-bright);margin:8px 0;text-shadow:0 0 30px rgba(245,197,74,.5)" id="lobby-code-big">----</div>
+      <button class="btn--sm btn btn--ghost" onclick="copyRoomCode()">📋 Copier le code</button>
+    </div>
+
+    <div>
+      <h3 style="font-family:var(--display);font-weight:800;color:var(--gold-bright);margin-bottom:8px">Joueurs (<span id="lobby-count">0</span>/6)</h3>
+      <div class="players-list" id="lobby-players"></div>
+    </div>
+
+    <div id="lobby-host-controls" style="display:none">
+      <button class="btn" id="btn-start" disabled>Lancer la partie ✦</button>
+    </div>
+    <p class="muted" id="lobby-wait-msg" style="text-align:center">En attente du host…</p>
+  </div>
+
+  <!-- ──────────────────────────── ASSOCIATE PHASE ─────────────────────────── -->
+  <div class="screen" id="screen-associate">
+    <div class="word-card">
+      <div class="label">Mot indice</div>
+      <div class="word" id="word-display">—</div>
+    </div>
+
+    <p class="muted" style="text-align:center;margin-top:4px">
+      Choisis entre <strong>1 et 10 cartes</strong> qui t'évoquent ce mot. C'est secret.
+    </p>
+
+    <div class="cards-board" id="board-associate"></div>
+
+    <div class="selection-bar">
+      <div class="count" id="sel-count">0<small> /10</small></div>
+      <div class="hint" id="sel-hint">Choisis au moins 1 carte pour valider</div>
+      <button class="btn" id="btn-validate-sel" disabled>Valider</button>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────── ANNOUNCE PHASE ─────────────────────────── -->
+  <div class="screen" id="screen-announce">
+    <header class="page-head">
+      <h1><span class="accent">Annonces</span>.</h1>
+      <p class="lede">Combien chacun a choisi. Le joueur qui a le plus (seul) passe en <strong>Obscurité</strong>.</p>
+    </header>
+    <div class="announce-grid" id="announce-list"></div>
+    <button class="btn" id="btn-go-reveal">→ Phase Révéler</button>
+    <p class="muted" id="announce-wait-msg" style="text-align:center;display:none">En attente du host…</p>
+  </div>
+
+  <!-- ──────────────────────────── REVEAL PHASE ─────────────────────────── -->
+  <div class="screen" id="screen-reveal">
+    <div class="word-card" style="padding:12px">
+      <div class="label">Mot</div>
+      <div class="word" id="word-reveal" style="font-size:1.6rem">—</div>
+    </div>
+
+    <div class="eclaireur-banner" id="eclaireur-banner">
+      <div class="who"><b id="eclaireur-name">—</b> est éclaireur</div>
+      <div class="what" id="eclaireur-action">Choisit une de ses cartes…</div>
+    </div>
+
+    <div class="cards-board" id="board-reveal"></div>
+
+    <p class="muted" id="reveal-wait-msg" style="text-align:center;display:none">En attente de l'éclaireur…</p>
+    <div id="reveal-mine-pending" style="display:none">
+      <p class="muted" style="text-align:center;margin-bottom:8px">À toi de jouer. Désigne une de tes cartes sur le plateau.</p>
+    </div>
+  </div>
+
+  <!-- ──────────────────────────── SCORING PHASE ─────────────────────────── -->
+  <div class="screen" id="screen-scoring">
+    <header class="page-head">
+      <h1><span class="accent">Score</span>.</h1>
+      <p class="lede">Fin de la manche <b id="scoring-round-n">—</b>.</p>
+    </header>
+
+    <div class="scoring-card">
+      <h3>Étoiles cette manche</h3>
+      <div class="players-list" id="scoring-list"></div>
+    </div>
+
+    <div style="margin-top:14px">
+      <h3 style="font-family:var(--display);font-weight:800;color:var(--gold-bright);margin-bottom:8px">Total cumulé</h3>
+      <div class="players-list" id="scoring-total-list"></div>
+    </div>
+
+    <button class="btn" id="btn-next-round">Manche suivante →</button>
+    <p class="muted" id="scoring-wait-msg" style="text-align:center;display:none">En attente du host…</p>
+  </div>
+
+  <!-- ──────────────────────────── FINISHED ─────────────────────────── -->
+  <div class="screen" id="screen-finished">
+    <div class="winner-card">
+      <span class="trophy">✦</span>
+      <div class="label">Vainqueur</div>
+      <div class="name" id="winner-name">—</div>
+      <div class="score" id="winner-score">— étoiles</div>
+    </div>
+
+    <div class="scoring-card">
+      <h3>Classement final</h3>
+      <div class="players-list" id="final-list"></div>
+    </div>
+
+    <button class="btn" onclick="window.location.reload()">Nouvelle partie ✦</button>
+  </div>
+
+</div>
+
+<!-- Rules modal -->
+<div class="modal-overlay" id="modal-rules">
+  <div class="modal">
+    <h3>Règles rapides</h3>
+    <p><strong style="color:var(--gold-bright)">1 — Associer.</strong> Un mot est tiré. Tu choisis (secret) entre 1 et 10 cartes parmi les 15 visibles, qui t'évoquent le mot.</p>
+    <p><strong style="color:var(--gold-bright)">2 — Annoncer.</strong> Tout le monde révèle <em>combien</em> de cartes il a choisi. Le joueur qui en a le plus tout seul passe en <strong>Obscurité</strong> (mode risqué).</p>
+    <p><strong style="color:var(--gold-bright)">3 — Révéler.</strong> Chacun à son tour désigne une de ses cartes sur le plateau :</p>
+    <p style="margin-left:14px;font-size:.9rem">
+      • <strong>Étincelle</strong> (≥2 autres l'avaient aussi) → <b>+2 étoiles</b><br>
+      • <strong>Super Étincelle</strong> (exactement 1 autre) → <b>+3 étoiles</b><br>
+      • <strong>Chute</strong> (personne d'autre) → <b>0 étoile</b> et tu ne joues plus ce tour
+    </p>
+    <p><strong style="color:var(--gold-bright)">4 — Joueur en Obscurité.</strong> Si tu chutes, tu perds 1 étoile par étincelle ratée.</p>
+    <p><strong style="color:var(--gold-bright)">5 — Fin.</strong> Après 4 manches, le joueur avec le plus d'étoiles gagne.</p>
+    <button class="btn btn--ghost" onclick="hideRules()">Compris ✓</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="game.js?v=2026-05-15-1"></script>
+
+</body>
+</html>
